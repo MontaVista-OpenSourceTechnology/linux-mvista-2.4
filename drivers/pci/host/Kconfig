@@ -116,6 +116,16 @@ config PCIE_XGS_IPROC
 	  This enables the XGS iProc PCIe core controller support for Broadcom's
 	  iProc family of SoCs.
 
+config PCIE_XGS_IPROC_EP
+	bool "Broadcom XGS iProc PCIe endpoint controller"
+	select PCI_DOMAINS
+	depends on ARCH_XGS_IPROC
+	depends on OF
+	default n
+	help
+	  Say Y here if you want to support Broadcom XGS iProc PCIe controller
+	  in endpoint mode on Katana2 SoC.
+
 config PCIE_IPROC
 	tristate
 	select PCI_DOMAINS
