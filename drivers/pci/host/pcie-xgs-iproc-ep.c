@@ -205,13 +205,21 @@ static void ep_tlp_generate(u64 pcie_addr, u32 data)
 static int __init
 pcie_ep_init(void)
 {
-	struct device_node *np;
+	struct device_node *np = NULL;
 	int i, ret;
 	u32 value;
 	dma_addr_t dma_handle;
 	int irq;
 
-	np = of_find_compatible_node(NULL, NULL, IPROC_PCIE_COMPATIBLE);
+	do {
+		np = of_find_compatible_node(np, NULL, IPROC_PCIE_COMPATIBLE);
+		if (np && !of_device_is_available(np)) {
+			pr_debug("%s: skip disabled PCIe node %s", __func__, np->full_name);
+			of_node_put(np);
+		} else
+			break;
+	} while (np);
+
 	if (!np) {
 		pr_err("%s: No PCIE node found\n", __func__);
 		return -ENODEV;
