@@ -22,6 +22,7 @@
 #include <linux/of_irq.h>
 #include <linux/of_address.h>
 #include <linux/of_device.h>
+#include <linux/pci_regs.h>
 
 #include <asm/memory.h>
 #include <asm/mach/irq.h>
@@ -32,6 +33,7 @@
 #define PAXB_0_CLK_CONTROL(base)		(base + 0x000)
 #define PAXB_0_PAXB_ENDIANNESS(base)		(base + 0x030)
 #define PAXB_0_CONFIG_IND_ADDR(base)		(base + 0x120)
+#define PAXB_0_CONFIG_IND_ADDR_MASK		0x00001ffc
 #define PAXB_0_CONFIG_IND_DATA(base)		(base + 0x124)
 #define PAXB_0_PCIE_SYS_MSI_PAGE(base)		(base + 0x204)
 #define PAXB_0_PCIE_SYS_MSI_REQ(base)		(base + 0x340)
@@ -207,7 +209,7 @@ pcie_ep_init(void)
 {
 	struct device_node *np = NULL;
 	int i, ret;
-	u32 value;
+	u32 value, hdr_type;
 	dma_addr_t dma_handle;
 	int irq;
 
@@ -228,6 +230,16 @@ pcie_ep_init(void)
 	iproc_pcie_base = of_iomap(np, 0);
 	if (!iproc_pcie_base)
 		return -ENOMEM;
+
+	writel_relaxed((PCI_HEADER_TYPE & ~0x3) & PAXB_0_CONFIG_IND_ADDR_MASK,
+			PAXB_0_CONFIG_IND_ADDR(iproc_pcie_base));
+	hdr_type = readl_relaxed(PAXB_0_CONFIG_IND_DATA(iproc_pcie_base));
+	hdr_type = (hdr_type >> (8 * (PCI_HEADER_TYPE & 3))) & ((1 << (8)) - 1);
+	if ((hdr_type & 0x7f) == PCI_HEADER_TYPE_BRIDGE) {
+		pr_err("%s: RC in HOST mode - no PCIe EP functionality available, hdr=%#02x\n", __func__, hdr_type);
+		ret = -EFAULT;
+		goto err_no_ep_mode;
+	}
 
 	pr_info("PCIe %s base address = 0x%x\n", np->full_name, (u32)iproc_pcie_base);
 
@@ -288,6 +300,10 @@ pcie_ep_init(void)
 	ep_tlp_generate(0x10006000, 0x1234beef);
 
 	return 0;
+
+err_no_ep_mode:
+	iounmap(iproc_pcie_base);
+	return ret;
 }
 
 static void __exit
